@@ -7,7 +7,6 @@ from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import sessionmaker
 
-
 class Base(DeclarativeBase):
     pass
 
@@ -30,6 +29,9 @@ class IdToKey(Base):
 
 dbpool = dict()
 
+split_char = " "
+
+
 class FullText:
     def __init__(self, source: str):
         if dbpool.get(source):
@@ -50,7 +52,7 @@ class FullText:
             if len(mylist) == 0:
                 str = str + temp
             else:
-                str = str+temp+","
+                str = str+temp+split_char
         return str
 
     def _merge(self, temp: list, list: list):
@@ -72,8 +74,10 @@ class FullText:
         keys = ''
         lkeys = []
         for key in cutkey:
-            keys = keys + key+","
-            lkeys.append(key)
+            if key.strip() != "":
+                keys = keys + key.strip()+split_char
+                if lkeys.count(key) == 0:
+                    lkeys.append(key)
         Session = sessionmaker(bind=self.engine)
         session = Session()
         idtokey = session.query(IdToKey).filter_by(id=id).first()
@@ -82,14 +86,14 @@ class FullText:
             session.add(idtokey)
         else:
             idtokey.modified_time = datetime.datetime.now()
-            keylist = idtokey.keys.split(',')
+            keylist = idtokey.keys.split(split_char)
             idtokey.keys = keys
             idtokey.content = txt
             keytoids = session.query(KeyToId).filter(
                 KeyToId.key.in_(keylist)).all()
             if len(keytoids) > 0:
                 for keytoid in keytoids:
-                    myids = keytoid.ids.split(",")
+                    myids = keytoid.ids.split(split_char)
                     myids.remove(id)
                     if len(myids) == 0:
                         session.delete(keytoid)
@@ -122,7 +126,7 @@ class FullText:
             if keytoid is None:
                 return None
             else:
-                temp = keytoid.ids.split(",")
+                temp = keytoid.ids.split(split_char)
                 if ids == None:
                     ids = temp
                 else:
