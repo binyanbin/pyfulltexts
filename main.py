@@ -12,11 +12,13 @@ def responseOk(data=None):
     return result
 
 
-def responseErr(data=None):
+def responseErr(data: str, code=None):
     result = {}
-    result["code"] = -1
-    if data is not None:
-        result["data"] = data
+    if code is None:
+        result["code"] = -1
+    else:
+        result["code"] = code
+    result["data"] = data
     return result
 
 
