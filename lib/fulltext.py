@@ -120,6 +120,25 @@ class FullText:
         keys = self.__trset(keys)
         self.__createIndex(id,  list(set(keys)), txt)
 
+    def deleteIndex(self, id: str):
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+        idtokey = session.query(IdToKey).filter_by(id=id).first()
+        if idtokey is not None:
+            session.delete(idtokey)
+            keys = idtokey.keys.split(split_char)
+            keytoids = session.query(KeyToId).filter(
+                KeyToId.key.in_(keys)).all()
+            for keytoid in keytoids:
+                list = keytoid.ids.split(',')
+                if list.count(id) > 0:
+                    list.remove(id)
+                    if len(list) > 0:
+                        keytoid.ids = self.__listostr(list)
+                    else:
+                        session.delete(keytoid)
+            session.commit()
+
     def query(self, keys: list):
         Session = sessionmaker(bind=self.engine)
         session = Session()
