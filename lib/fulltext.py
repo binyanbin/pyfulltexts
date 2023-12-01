@@ -1,14 +1,17 @@
+import copy
 import jieba
 import datetime
-from sqlalchemy import and_, create_engine
+from sqlalchemy import create_engine
 from sqlalchemy import DateTime, Text, VARCHAR
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import sessionmaker
 
+
 class Base(DeclarativeBase):
     pass
+
 
 class KeyToId(Base):
     __tablename__ = "t_key_to_id"
@@ -20,7 +23,7 @@ class IdToKey(Base):
     __tablename__ = "t_id_to_key"
     id: Mapped[str] = mapped_column(primary_key=True)
     keys: Mapped[str] = mapped_column(Text())
-    content: Mapped[str] = mapped_column(VARCHAR(200))
+    content: Mapped[str] = mapped_column(VARCHAR(200), nullable=True)
     created_time: Mapped[DateTime] = mapped_column(
         DateTime(), default=datetime.datetime.now)
     modified_time: Mapped[DateTime] = mapped_column(
@@ -28,7 +31,6 @@ class IdToKey(Base):
 
 
 dbpool = dict()
-
 split_char = " "
 
 
@@ -42,52 +44,46 @@ class FullText:
             dbpool[source] = self.engine
             Base.metadata.create_all(self.engine)
 
-    def _listostr(self, mylist: list):
-        if mylist is None:
+    def __listostr(self, mylist: list):
+        if mylist is None or len(mylist) == 0:
             return ''
         str = ''
         index = 0
-        while len(mylist) > 0:
-            temp = mylist.pop(index)
-            if len(mylist) == 0:
+        list = copy.deepcopy(mylist)
+        while len(list) > 0:
+            temp = list.pop(index)
+            if len(list) == 0:
                 str = str + temp
             else:
                 str = str+temp+split_char
         return str
 
-    def _merge(self, temp: list, list: list):
+    def __merge(self, temp: list, list: list):
         result = []
         for id in list:
             if temp.count(id) > 0:
                 result.append(id)
         return result
 
-    def clear(self):
-        Session = sessionmaker(bind=self.engine)
-        session = Session()
-        session.query(KeyToId).delete()
-        session.query(IdToKey).delete()
-        session.commit()
-
-    def createIndex(self, id: str, txt: str):
-        cutkey = jieba.cut_for_search(txt)
-        keys = ''
-        lkeys = []
-        for key in cutkey:
+    def __trset(self, list):
+        keys = []
+        for key in list:
             if key.strip() != "":
-                keys = keys + key.strip()+split_char
-                if lkeys.count(key) == 0:
-                    lkeys.append(key)
+                if keys.count(key) == 0:
+                    keys.append(key)
+        return keys
+
+    def __createIndex(self, id: str, keys: list,  txt: str):
         Session = sessionmaker(bind=self.engine)
         session = Session()
         idtokey = session.query(IdToKey).filter_by(id=id).first()
         if idtokey is None:
-            idtokey = IdToKey(id=id, keys=keys, content=txt)
+            idtokey = IdToKey(id=id, keys=self.__listostr(keys), content=txt)
             session.add(idtokey)
         else:
             idtokey.modified_time = datetime.datetime.now()
             keylist = idtokey.keys.split(split_char)
-            idtokey.keys = keys
+            idtokey.keys = self.__listostr(keys)
             idtokey.content = txt
             keytoids = session.query(KeyToId).filter(
                 KeyToId.key.in_(keylist)).all()
@@ -98,22 +94,31 @@ class FullText:
                     if len(myids) == 0:
                         session.delete(keytoid)
                     else:
-                        keytoid.ids = self._listostr(myids)
+                        keytoid.ids = self.__listostr(myids)
 
         keytoids = session.query(KeyToId).filter(
-            KeyToId.key.in_(lkeys)).all()
+            KeyToId.key.in_(keys)).all()
         for keytoid in keytoids:
-            if lkeys.count(keytoid.key) > 0:
-                lkeys.remove(keytoid.key)
+            if keys.count(keytoid.key) > 0:
+                keys.remove(keytoid.key)
             list = keytoid.ids.split(',')
             if list.count(id) == 0:
                 list.append(id)
-                keytoid.ids = self._listostr(list)
-        if len(lkeys) > 0:
-            for key in lkeys:
+                keytoid.ids = self.__listostr(list)
+        if len(keys) > 0:
+            for key in keys:
                 keytoid = KeyToId(key=key, ids=id)
                 session.add(keytoid)
         session.commit()
+
+    def createIndex(self, id: str, txt: str):
+        cutkey = jieba.cut_for_search(txt)
+        keys = self.__trset(cutkey)
+        self.__createIndex(id, keys, txt)
+
+    def createIndex2(self, id: str, keys: list, txt: str):
+        keys = self.__trset(keys)
+        self.__createIndex(id,  list(set(keys)), txt)
 
     def query(self, keys: list):
         Session = sessionmaker(bind=self.engine)
@@ -130,7 +135,7 @@ class FullText:
                 if ids == None:
                     ids = temp
                 else:
-                    ids = self._merge(ids, temp)
+                    ids = self.__merge(ids, temp)
                     if len(ids) == 0:
                         return None
         idtokeys = session.query(IdToKey).filter(IdToKey.id.in_(ids)).all()
@@ -138,3 +143,10 @@ class FullText:
         for idtokey in idtokeys:
             result.append({"id": idtokey.id, "content": idtokey.content})
         return result
+
+    def clear(self):
+        Session = sessionmaker(bind=self.engine)
+        session = Session()
+        session.query(KeyToId).delete()
+        session.query(IdToKey).delete()
+        session.commit()
