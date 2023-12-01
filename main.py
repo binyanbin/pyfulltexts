@@ -48,7 +48,7 @@ class MainHandler(tornado.web.RequestHandler):
 
     def post(self):
         data = tornado.escape.json_decode(self.request.body)
-        if containsKeys(data, ["source", "id", "content"]) != True:
+        if containsKeys(data, ["source", "id"]) != True:
             self.write(responseErr("source不能为空"))
             return
         if data["source"] == "":
@@ -57,15 +57,18 @@ class MainHandler(tornado.web.RequestHandler):
         if data["id"] == "":
             self.write(responseErr("id不能为空"))
             return
-        if data["content"] == "":
-            self.write(responseErr("content不能为空"))
-            return
+        content = ""
+        if containsKeys(data, ["content"]) == True:
+            content = data["content"]
+            
         fulltext = FullText(data["source"])
-        if containsKeys(data, ["keys"]) and len(data["keys"]) > 0:
-            fulltext.createIndex2(
-                data["id"], data["keys"], data["content"])
+        if containsKeys(data, ["keys"]):
+            if len(data["keys"]) > 0:
+                fulltext.createIndex2(data["id"], data["keys"], content)
+            else:
+                fulltext.deleteIndex(data["id"])
         else:
-            fulltext.createIndex(id=data["id"], txt=data["content"])
+            fulltext.createIndex(data["id"], content)
         self.write(responseOk())
 
 
