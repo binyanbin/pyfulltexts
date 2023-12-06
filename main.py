@@ -78,12 +78,11 @@ class VoiceHandler(tornado.web.RequestHandler):
     def __text2File(self, text, dstFile):
         engine.save_to_file(text, dstFile)
         engine.runAndWait()
-
     def get(self):
         text = self.get_query_argument("text").strip()
         if len(text) > 0:
             tmpFile = "1.mp3"
-            rate = self.get_query_argument("rate", 100)
+            rate = self.get_query_argument("rate", 150)
             if isinstance(rate, int) == False:
                 rate = self.get_query_argument("rate").strip()
             engine.setProperty('rate', int(rate))
@@ -96,22 +95,14 @@ class VoiceHandler(tornado.web.RequestHandler):
         else:
             self.write(responseErr("请输入文本"))
 
-    def post(self):
-        print("post")
-        print(self.request.arguments)
-
-
-port = 8888
-
-
 def make_app():
     return tornado.web.Application([
         (r"/index", IndexHandler),
         (r"/voice", VoiceHandler)
     ])
 
-
 async def main():
+    port = 8888
     app = make_app()
     app.listen(port)
     await asyncio.Event().wait()
