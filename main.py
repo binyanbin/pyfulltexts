@@ -32,8 +32,8 @@ def containsKeys(obj, keys):
     else:
         return False
 
-
-class MainHandler(tornado.web.RequestHandler):
+### 索引处理
+class IndexHandler(tornado.web.RequestHandler):
     def get(self):
         target = self.get_query_argument("target", "")
         keys = self.get_query_argument("keys", "")
@@ -73,7 +73,7 @@ class MainHandler(tornado.web.RequestHandler):
             fulltext.createIndex(data["id"], content)
         self.write(responseOk())
 
-
+### 语音合成
 class VoiceHandler(tornado.web.RequestHandler):
     def __text2File(self, text, dstFile):
         engine.save_to_file(text, dstFile)
@@ -106,7 +106,7 @@ port = 8888
 
 def make_app():
     return tornado.web.Application([
-        (r"/index", MainHandler),
+        (r"/index", IndexHandler),
         (r"/voice", VoiceHandler)
     ])
 
