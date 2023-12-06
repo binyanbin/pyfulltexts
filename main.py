@@ -2,7 +2,9 @@
 import asyncio
 import tornado
 from lib.fulltext import FullText
+import pyttsx3
 
+engine = pyttsx3.init()
 
 def responseOk(data=None):
     result = {}
@@ -33,26 +35,26 @@ def containsKeys(obj, keys):
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        source = self.get_query_argument("source", "")
+        target = self.get_query_argument("target", "")
         keys = self.get_query_argument("keys", "")
-        if source == "":
-            self.write(responseErr("source不能为空"))
+        if target == "":
+            self.write(responseErr("target"))
             return
         if keys == "":
             self.write(responseErr("keys不能为空"))
             return
-        fulltext = FullText(source)
+        fulltext = FullText(target)
         lkeys = keys.split(",")
         result = fulltext.query(lkeys)
         self.write(responseOk(result))
 
     def post(self):
         data = tornado.escape.json_decode(self.request.body)
-        if containsKeys(data, ["source", "id"]) != True:
-            self.write(responseErr("source不能为空"))
+        if containsKeys(data, ["target", "id"]) != True:
+            self.write(responseErr("数据格式不正确"))
             return
-        if data["source"] == "":
-            self.write(responseErr("source不能为空"))
+        if data["target"] == "":
+            self.write(responseErr("target不能为空"))
             return
         if data["id"] == "":
             self.write(responseErr("id不能为空"))
@@ -60,8 +62,8 @@ class MainHandler(tornado.web.RequestHandler):
         content = ""
         if containsKeys(data, ["content"]) == True:
             content = data["content"]
-            
-        fulltext = FullText(data["source"])
+
+        fulltext = FullText(data["target"])
         if containsKeys(data, ["keys"]):
             if len(data["keys"]) > 0:
                 fulltext.createIndex2(data["id"], data["keys"], content)
@@ -72,12 +74,40 @@ class MainHandler(tornado.web.RequestHandler):
         self.write(responseOk())
 
 
+class VoiceHandler(tornado.web.RequestHandler):
+    def __text2File(self, text, dstFile):
+        engine.save_to_file(text, dstFile)
+        engine.runAndWait()
+
+    def get(self):
+        text = self.get_query_argument("text").strip()
+        if len(text) > 0:
+            tmpFile = "1.mp3"
+            rate = self.get_query_argument("rate", 100)
+            if isinstance(rate, int) == False:
+                rate = self.get_query_argument("rate").strip()
+            engine.setProperty('rate', int(rate))
+            self.__text2File(text, tmpFile)
+            self.set_header('content-type', 'audio/mpeg')
+            fbin = open(tmpFile, "rb").read()
+            self.set_header('Content-Length', len(fbin))
+            self.write(fbin)
+            self.finish()
+        else:
+            self.write(responseErr("请输入文本"))
+
+    def post(self):
+        print("post")
+        print(self.request.arguments)
+
+
 port = 8888
 
 
 def make_app():
     return tornado.web.Application([
         (r"/index", MainHandler),
+        (r"/voice", VoiceHandler)
     ])
 
 
