@@ -1,5 +1,6 @@
 #索引服务
 import asyncio
+import json
 import tornado
 import copy
 import jieba
@@ -15,6 +16,12 @@ nginx = True
 nginx_ip_key = "X-Real-IP"
 dbpool = dict()
 split_char = " "
+
+class BytesEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return str(obj, encoding='utf-8')
+        return json.JSONEncoder.default(self, obj)
 
 class Base(DeclarativeBase):
     pass
@@ -217,7 +224,7 @@ class IndexHandler(tornado.web.RequestHandler):
         fulltext = FullText(target)
         lkeys = keys.split(",")
         result = fulltext.query(lkeys)
-        self.write(responseOk(result))
+        self.write(json.dumps(result, ensure_ascii=False, cls=BytesEncoder))
 
     def post(self):
         data = tornado.escape.json_decode(self.request.body)
