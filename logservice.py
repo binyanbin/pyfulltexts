@@ -1,4 +1,4 @@
-#日志服务
+# 日志服务
 import asyncio
 import datetime
 import json
@@ -19,11 +19,13 @@ split_char = " "
 nginx = False
 nginx_ip_key = "X-Real-IP"
 
+
 class BytesEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, bytes):
-            return str(obj, encoding='utf-8')
+            return str(obj, encoding="utf-8")
         return json.JSONEncoder.default(self, obj)
+
 
 def responseOk(data=None):
     result = {}
@@ -42,8 +44,10 @@ def responseErr(data: str, code=None):
     result["data"] = data
     return result
 
+
 class Base(DeclarativeBase):
     pass
+
 
 class KeyToId(Base):
     __tablename__ = "t_key_to_id"
@@ -56,7 +60,8 @@ class IdToKey(Base):
     id: Mapped[str] = mapped_column(primary_key=True)
     content: Mapped[str] = mapped_column(VARCHAR(1000))
     createdTime: Mapped[DateTime] = mapped_column(
-        DateTime(), default=datetime.now, index=True)
+        DateTime(), default=datetime.now, index=True
+    )
     traceId: Mapped[str] = mapped_column(VARCHAR(100), index=True)
     ip: Mapped[str] = mapped_column(VARCHAR(30))
 
@@ -72,14 +77,14 @@ class LogDb:
             self.engine = dbpool[source]
             Base.metadata.create_all(self.engine)
         else:
-            self.engine = create_engine("sqlite:///"+source+".db", echo=False)
+            self.engine = create_engine("sqlite:///" + source + ".db", echo=False)
             dbpool[source] = self.engine
             Base.metadata.create_all(self.engine)
 
     def __listostr(self, mylist: list):
         if mylist is None or len(mylist) == 0:
-            return ''
-        str = ''
+            return ""
+        str = ""
         index = 0
         list = copy.deepcopy(mylist)
         while len(list) > 0:
@@ -87,7 +92,7 @@ class LogDb:
             if len(list) == 0:
                 str = str + temp
             else:
-                str = str+temp+split_char
+                str = str + temp + split_char
         return str
 
     def __merge(self, temp: list, list: list):
@@ -97,11 +102,11 @@ class LogDb:
                 result.append(id)
         return result
 
-    def __isSymbol(self,s):
+    def __isSymbol(self, s):
         for char in s:
-            if not (char.isalpha() or char.isdigit() or ('\u4e00' <= char <= '\u9fff')):
+            if not (char.isalpha() or char.isdigit() or ("\u4e00" <= char <= "\u9fff")):
                 return False
-        return True        
+        return True
 
     def __trset(self, list):
         keys = []
@@ -123,15 +128,15 @@ class LogDb:
         else:
             count.max_id = count.max_id + 1
             id = count.max_id
-        idtokey = IdToKey(id=id, content=txt, ip=ip,
-                          traceId=traceId, createdTime=createdTime)
+        idtokey = IdToKey(
+            id=id, content=txt, ip=ip, traceId=traceId, createdTime=createdTime
+        )
         session.add(idtokey)
-        keytoids = session.query(KeyToId).filter(
-            KeyToId.key.in_(keys)).all()
+        keytoids = session.query(KeyToId).filter(KeyToId.key.in_(keys)).all()
         for keytoid in keytoids:
             if keys.count(keytoid.key) > 0:
                 keys.remove(keytoid.key)
-            list = keytoid.ids.split(',')
+            list = keytoid.ids.split(",")
             if list.count(str(id)) == 0:
                 list.append(str(id))
                 keytoid.ids = self.__listostr(list)
@@ -141,18 +146,19 @@ class LogDb:
                 session.add(keytoid)
         session.commit()
 
-    def clearLog(self, id: str,createdTime:datetime):
+    def clearLog(self, id: str, createdTime: datetime):
         Session = sessionmaker(bind=self.engine)
         session = Session()
-        idtokeys = session.query(IdToKey).filter(IdToKey.createdTime<createdTime).all()
-        if len(idtokeys)>0:
+        idtokeys = (
+            session.query(IdToKey).filter(IdToKey.createdTime < createdTime).all()
+        )
+        if len(idtokeys) > 0:
             for idtokey in idtokeys:
                 session.delete(idtokey)
                 keys = idtokey.keys.split(split_char)
-                keytoids = session.query(KeyToId).filter(
-                    KeyToId.key.in_(keys)).all()
+                keytoids = session.query(KeyToId).filter(KeyToId.key.in_(keys)).all()
                 for keytoid in keytoids:
-                    list = keytoid.ids.split(',')
+                    list = keytoid.ids.split(",")
                     if list.count(id) > 0:
                         list.remove(id)
                         if len(list) > 0:
@@ -167,8 +173,7 @@ class LogDb:
         session = Session()
         ids = None
         if len(keys) > 0:
-            keytoids = session.query(KeyToId).filter(
-                KeyToId.key.in_(keys)).all()
+            keytoids = session.query(KeyToId).filter(KeyToId.key.in_(keys)).all()
         else:
             return None
         for keytoid in keytoids:
@@ -180,15 +185,34 @@ class LogDb:
         if ids == None or len(ids) == 0:
             return None
         if traceId == None:
-            idtokeys = session.query(IdToKey).filter(
-                and_(IdToKey.createdTime.between(begin, end), IdToKey.id.in_(ids))).all()
+            idtokeys = (
+                session.query(IdToKey)
+                .filter(
+                    and_(IdToKey.createdTime.between(begin, end), IdToKey.id.in_(ids))
+                )
+                .all()
+            )
         else:
-            idtokeys = session.query(IdToKey).filter(
-                and_(IdToKey.createdTime.between(begin, end), IdToKey.id.in_(ids), IdToKey.traceId == traceId)).all()
+            idtokeys = (
+                session.query(IdToKey)
+                .filter(
+                    and_(
+                        IdToKey.createdTime.between(begin, end),
+                        IdToKey.id.in_(ids),
+                        IdToKey.traceId == traceId,
+                    )
+                )
+                .all()
+            )
         result = []
         for idtokey in idtokeys:
             result.append(
-                {"traceId": idtokey.traceId, "createdTime": str(idtokey.createdTime), "content": idtokey.content})
+                {
+                    "traceId": idtokey.traceId,
+                    "createdTime": str(idtokey.createdTime),
+                    "content": idtokey.content,
+                }
+            )
         return result
 
     def clear(self):
@@ -224,7 +248,7 @@ class LogHandler(tornado.web.RequestHandler):
         if traceId == "":
             traceId = None
 
-        log = LogDb("log"+branchId)
+        log = LogDb("log" + branchId)
         result = log.query(content, begin, end, traceId)
 
         self.write(json.dumps(result, ensure_ascii=False, cls=BytesEncoder))
@@ -248,14 +272,18 @@ class LogHandler(tornado.web.RequestHandler):
             ip = self.request.headers.get(nginx_ip_key)
         else:
             ip = self.request.remote_ip
-        log = LogDb("log"+branchId)
+        log = LogDb("log" + branchId)
         log.write(traceId=traceId, txt=content, ip=ip, createdTime=dt)
         self.write(responseOk())
 
+
 def make_app():
-    return tornado.web.Application([
-        (r"/log", LogHandler),
-    ])
+    return tornado.web.Application(
+        [
+            (r"/log", LogHandler),
+        ]
+    )
+
 
 async def main():
     port = 8888
@@ -263,6 +291,6 @@ async def main():
     app.listen(port)
     await asyncio.Event().wait()
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-

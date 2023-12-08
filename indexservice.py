@@ -1,4 +1,4 @@
-#索引服务
+# 索引服务
 import asyncio
 import json
 import tornado
@@ -17,14 +17,17 @@ nginx_ip_key = "X-Real-IP"
 dbpool = dict()
 split_char = " "
 
+
 class BytesEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, bytes):
-            return str(obj, encoding='utf-8')
+            return str(obj, encoding="utf-8")
         return json.JSONEncoder.default(self, obj)
+
 
 class Base(DeclarativeBase):
     pass
+
 
 class KeyToId(Base):
     __tablename__ = "t_key_to_id"
@@ -37,10 +40,13 @@ class IdToKey(Base):
     id: Mapped[str] = mapped_column(primary_key=True)
     keys: Mapped[str] = mapped_column(Text())
     created_time: Mapped[DateTime] = mapped_column(
-        DateTime(), default=datetime.datetime.now)
+        DateTime(), default=datetime.datetime.now
+    )
     modified_time: Mapped[DateTime] = mapped_column(
-        DateTime(), default=datetime.datetime.now)
+        DateTime(), default=datetime.datetime.now
+    )
     ip: Mapped[str] = mapped_column(VARCHAR(30))
+
 
 class FullText:
     def __init__(self, source: str):
@@ -48,14 +54,14 @@ class FullText:
             self.engine = dbpool[source]
             Base.metadata.create_all(self.engine)
         else:
-            self.engine = create_engine("sqlite:///"+source+".db", echo=False)
+            self.engine = create_engine("sqlite:///" + source + ".db", echo=False)
             dbpool[source] = self.engine
             Base.metadata.create_all(self.engine)
 
     def __listostr(self, mylist: list):
         if mylist is None or len(mylist) == 0:
-            return ''
-        str = ''
+            return ""
+        str = ""
         index = 0
         list = copy.deepcopy(mylist)
         while len(list) > 0:
@@ -63,7 +69,7 @@ class FullText:
             if len(list) == 0:
                 str = str + temp
             else:
-                str = str+temp+split_char
+                str = str + temp + split_char
         return str
 
     def __merge(self, temp: list, list: list):
@@ -75,7 +81,7 @@ class FullText:
 
     def __isSymbol(self, s):
         for char in s:
-            if not (char.isalpha() or char.isdigit() or ('\u4e00' <= char <= '\u9fff')):
+            if not (char.isalpha() or char.isdigit() or ("\u4e00" <= char <= "\u9fff")):
                 return False
         return True
 
@@ -87,20 +93,18 @@ class FullText:
                     keys.append(key)
         return keys
 
-    def __createIndex(self, id: str, keys: list,  txt: str, ip: str):
+    def __createIndex(self, id: str, keys: list, txt: str, ip: str):
         Session = sessionmaker(bind=self.engine)
         session = Session()
         idtokey = session.query(IdToKey).filter_by(id=id).first()
         if idtokey is None:
-            idtokey = IdToKey(id=id, keys=self.__listostr(
-                keys), ip=ip)
+            idtokey = IdToKey(id=id, keys=self.__listostr(keys), ip=ip)
             session.add(idtokey)
         else:
             idtokey.modified_time = datetime.datetime.now()
             keylist = idtokey.keys.split(split_char)
             idtokey.keys = self.__listostr(keys)
-            keytoids = session.query(KeyToId).filter(
-                KeyToId.key.in_(keylist)).all()
+            keytoids = session.query(KeyToId).filter(KeyToId.key.in_(keylist)).all()
             if len(keytoids) > 0:
                 for keytoid in keytoids:
                     myids = keytoid.ids.split(split_char)
@@ -110,12 +114,11 @@ class FullText:
                     else:
                         keytoid.ids = self.__listostr(myids)
 
-        keytoids = session.query(KeyToId).filter(
-            KeyToId.key.in_(keys)).all()
+        keytoids = session.query(KeyToId).filter(KeyToId.key.in_(keys)).all()
         for keytoid in keytoids:
             if keys.count(keytoid.key) > 0:
                 keys.remove(keytoid.key)
-            list = keytoid.ids.split(',')
+            list = keytoid.ids.split(",")
             if list.count(id) == 0:
                 list.append(id)
                 keytoid.ids = self.__listostr(list)
@@ -132,7 +135,7 @@ class FullText:
 
     def createIndex2(self, id: str, keys: list, txt: str, ip: str):
         keys = self.__trset(keys)
-        self.__createIndex(id,  list(set(keys)), txt, ip)
+        self.__createIndex(id, list(set(keys)), txt, ip)
 
     def deleteIndex(self, id: str):
         Session = sessionmaker(bind=self.engine)
@@ -141,10 +144,9 @@ class FullText:
         if idtokey is not None:
             session.delete(idtokey)
             keys = idtokey.keys.split(split_char)
-            keytoids = session.query(KeyToId).filter(
-                KeyToId.key.in_(keys)).all()
+            keytoids = session.query(KeyToId).filter(KeyToId.key.in_(keys)).all()
             for keytoid in keytoids:
-                list = keytoid.ids.split(',')
+                list = keytoid.ids.split(",")
                 if list.count(id) > 0:
                     list.remove(id)
                     if len(list) > 0:
@@ -175,8 +177,7 @@ class FullText:
         result = []
         for idtokey in idtokeys:
             showkeys = idtokey.keys.split(split_char)
-            result.append(
-                {"id": idtokey.id, "keys": showkeys})
+            result.append({"id": idtokey.id, "keys": showkeys})
         return result
 
     def clear(self):
@@ -194,6 +195,7 @@ def responseOk(data=None):
         result["data"] = data
     return result
 
+
 def responseErr(data: str, code=None):
     result = {}
     if code is None:
@@ -203,13 +205,15 @@ def responseErr(data: str, code=None):
     result["data"] = data
     return result
 
+
 def containsKeys(obj, keys):
     if isinstance(obj, dict):
         return all(key in obj.keys() for key in keys)
-    elif hasattr(type(obj), '__dict__'):
+    elif hasattr(type(obj), "__dict__"):
         return all(key in obj.__dict__ for key in keys)
     else:
         return False
+
 
 class IndexHandler(tornado.web.RequestHandler):
     def get(self):
@@ -240,7 +244,7 @@ class IndexHandler(tornado.web.RequestHandler):
         if content == "":
             self.write(responseErr("content不能为空"))
             return
-            
+
         ip = ""
         if nginx == True:
             ip = self.request.headers.get(nginx_ip_key)
@@ -249,28 +253,29 @@ class IndexHandler(tornado.web.RequestHandler):
 
         fulltext = FullText(target)
         if len(keys) > 0:
-            fulltext.createIndex2(
-                id, keys, content, self.request.remote_ip)
+            fulltext.createIndex2(id, keys, content, self.request.remote_ip)
         else:
             if content == "":
                 fulltext.deleteIndex(id)
             else:
-                fulltext.createIndex(
-                    id, content, self.request.remote_ip)
+                fulltext.createIndex(id, content, self.request.remote_ip)
         self.write(responseOk())
 
 
-
 def make_app():
-    return tornado.web.Application([
-        (r"/index", IndexHandler),
-    ])
+    return tornado.web.Application(
+        [
+            (r"/index", IndexHandler),
+        ]
+    )
+
 
 async def main():
     port = 8888
     app = make_app()
     app.listen(port)
     await asyncio.Event().wait()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
