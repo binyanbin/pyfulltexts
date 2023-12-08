@@ -227,7 +227,7 @@ class IndexHandler(tornado.web.RequestHandler):
         self.write(json.dumps(result, ensure_ascii=False, cls=BytesEncoder))
 
     def post(self):
-        data = tornado.escape.json_decode(self.request.body)
+        content = self.request.body
         target = self.get_query_argument("target", "")
         id = self.get_query_argument("id", "")
         keys = self.get_query_argument("keys", "")
@@ -237,9 +237,9 @@ class IndexHandler(tornado.web.RequestHandler):
         if id == "":
             self.write(responseErr("id不能为空"))
             return
-        content = ""
-        if containsKeys(data, ["content"]) == True:
-            content = data["content"]
+        if content == "":
+            self.write(responseErr("content不能为空"))
+            return
             
         ip = ""
         if nginx == True:
@@ -248,15 +248,15 @@ class IndexHandler(tornado.web.RequestHandler):
             ip = self.request.remote_ip
 
         fulltext = FullText(target)
-        if len(data["keys"]) > 0:
+        if len(keys) > 0:
             fulltext.createIndex2(
-                id, data["keys"], content, self.request.remote_ip)
+                id, keys, content, self.request.remote_ip)
         else:
             if content == "":
-                fulltext.deleteIndex(data["id"])
+                fulltext.deleteIndex(id)
             else:
                 fulltext.createIndex(
-                    data["id"], content, self.request.remote_ip)
+                    id, content, self.request.remote_ip)
         self.write(responseOk())
 
 
