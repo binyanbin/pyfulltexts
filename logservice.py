@@ -105,13 +105,13 @@ class LogDb:
     def __isSymbol(self, s):
         for char in s:
             if not (char.isalpha() or char.isdigit() or ("\u4e00" <= char <= "\u9fff")):
-                return False
-        return True
+                return True
+        return False
 
     def __trset(self, list):
         keys = []
         for key in list:
-            if key.strip() != "" and self.__isSymbol(key) == True:
+            if key.strip() != "" and self.__isSymbol(key) == False:
                 if keys.count(key) == 0:
                     keys.append(key)
         return keys
